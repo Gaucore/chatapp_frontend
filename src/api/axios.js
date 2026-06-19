@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://chatapp-backend-seven-tan.vercel.app/api",
+  baseURL: "https://chatapp-backend-3exy.onrender.com/api",
 });
 
 api.interceptors.request.use(
