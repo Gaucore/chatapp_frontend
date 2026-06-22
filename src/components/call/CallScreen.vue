@@ -53,7 +53,8 @@
           ref="remoteVideo"
           autoplay
           playsinline
-           :muted="false"
+          webkit-playsinline
+          :muted="false"
           class="absolute inset-0 w-full h-full object-cover"
         />
 
@@ -78,6 +79,7 @@
           autoplay
           muted
           playsinline
+          webkit-playsinline
           class="
             absolute
             bottom-32
@@ -224,20 +226,25 @@ watch(
     { immediate: true }
 );
 
+
+
 watch(
     () => callStore.remoteStream,
     async (stream) => {
-        if (stream && remoteVideo.value) {
-            remoteVideo.value.srcObject = stream;
-            try {
-                await remoteVideo.value.play();
-            }
-            catch (e) {
-                console.log(e);
-            }
+        if (!stream || !remoteVideo.value) return;
+        remoteVideo.value.srcObject = stream;
+        remoteVideo.value.muted = false;
+        remoteVideo.value.volume = 1;
+        try {
+            await remoteVideo.value.play();
+        }
+        catch (err) {
+            console.log("Remote Play Error", err);
         }
     },
-    { immediate: true }
+    {
+        immediate: true,
+    }
 );
 
 

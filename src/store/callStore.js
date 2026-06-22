@@ -137,15 +137,23 @@ export const useCallStore = defineStore("call", {
         this.localStream = stream;
 
         const peer = new RTCPeerConnection({
-          iceServers: [
-            {
-              urls: [
-                "stun:stun.l.google.com:19302",
-                "stun:stun1.l.google.com:19302",
+
+              iceServers: [
+
+                  {
+                      urls: [
+                          "stun:stun.l.google.com:19302",
+                          "stun:stun1.l.google.com:19302",
+                      ],
+                  },
+
+                  {
+                      urls: "stun:stun.cloudflare.com:3478",
+                  },
+
               ],
-            },
-          ],
-        });
+
+          });
 
         this.peer = peer;
 
@@ -153,18 +161,43 @@ export const useCallStore = defineStore("call", {
           peer.addTrack(track, stream);
         });
 
-        peer.ontrack = (event) => {
 
-            if (!this.remoteStream) {
-                this.remoteStream = new MediaStream();
+        peer.onnegotiationneeded = async () => {
+
+            try {
+
+                const offer = await peer.createOffer();
+
+                await peer.setLocalDescription(offer);
+
             }
 
-            event.streams[0]
-                .getTracks()
-                .forEach(track => {
-                    this.remoteStream.addTrack(track);
-                });
+            catch (e) {
 
+                console.log(e);
+
+            }
+
+        };
+
+        // peer.ontrack = (event) => {
+
+        //     if (!this.remoteStream) {
+        //         this.remoteStream = new MediaStream();
+        //     }
+
+        //     event.streams[0]
+        //         .getTracks()
+        //         .forEach(track => {
+        //             this.remoteStream.addTrack(track);
+        //         });
+
+        // };
+
+       peer.ontrack = (event) => {
+            console.log("Remote Track");
+
+            this.remoteStream = event.streams[0];
         };
 
        peer.onicecandidate = ({ candidate }) => {
@@ -231,15 +264,23 @@ export const useCallStore = defineStore("call", {
         this.localStream = stream;
 
         const peer = new RTCPeerConnection({
-          iceServers: [
-            {
-              urls: [
-                "stun:stun.l.google.com:19302",
-                "stun:stun1.l.google.com:19302",
+
+              iceServers: [
+
+                  {
+                      urls: [
+                          "stun:stun.l.google.com:19302",
+                          "stun:stun1.l.google.com:19302",
+                      ],
+                  },
+
+                  {
+                      urls: "stun:stun.cloudflare.com:3478",
+                  },
+
               ],
-            },
-          ],
-        });
+
+          });
 
         this.peer = peer;
 
@@ -265,17 +306,33 @@ export const useCallStore = defineStore("call", {
           peer.addTrack(track, stream);
         });
 
+        
+        peer.onnegotiationneeded = async () => {
+
+            try {
+
+                const offer = await peer.createOffer();
+
+                await peer.setLocalDescription(offer);
+
+            }
+
+            catch (e) {
+
+                console.log(e);
+
+            }
+
+        };
+
+
+
+
        peer.ontrack = (event) => {
 
-          if (!this.remoteStream) {
-              this.remoteStream = new MediaStream();
-          }
+          console.log("Remote Stream Accepted");
 
-          event.streams[0]
-              .getTracks()
-              .forEach(track => {
-                  this.remoteStream.addTrack(track);
-              });
+          this.remoteStream = event.streams[0];
 
       };
 
