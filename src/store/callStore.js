@@ -14,7 +14,6 @@ export const useCallStore = defineStore("call", {
     receiverId: null,
     callUser: null,
     userId: null,
-
     chatId: null,
   }),
 
@@ -27,7 +26,6 @@ export const useCallStore = defineStore("call", {
       this.userId = id;
     },
 
-    /* ================= SOCKET INIT ================= */
     init() {
       socket.on("incoming-call", (data) => {
         this.incomingCall = data;
@@ -35,16 +33,14 @@ export const useCallStore = defineStore("call", {
         this.callType = data.callType;
       });
 
-      socket.on("call-rejected", () => this.cleanup());
       socket.on("call-ended", () => this.cleanup());
+      socket.on("call-rejected", () => this.cleanup());
 
       socket.on("call-accepted", async ({ answer }) => {
         if (!this.peer) return;
-
         await this.peer.setRemoteDescription(
           new RTCSessionDescription(answer)
         );
-
         this.callActive = true;
       });
 
@@ -56,63 +52,52 @@ export const useCallStore = defineStore("call", {
             new RTCIceCandidate(candidate)
           );
         } catch (e) {
-          console.log(e);
+          console.log("ICE error:", e);
         }
       });
     },
 
-    /* ================= START CALL ================= */
     async startCall(toUserId, type = "video") {
       this.receiverId = toUserId;
       this.callType = type;
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video:
-          type === "video"
-            ? { facingMode: "user" }
-            : false,
+        video: type === "video" ? { facingMode: "user" } : false,
         audio: true,
       });
 
       this.localStream = stream;
+      this.remoteStream = new MediaStream(); // FIXED
 
       const peer = new RTCPeerConnection({
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
           { urls: "stun:stun1.l.google.com:19302" },
-          { urls: "stun:stun.cloudflare.com:3478" },
         ],
       });
 
       this.peer = peer;
 
-      /* ADD TRACKS */
       stream.getTracks().forEach((track) => {
         peer.addTrack(track, stream);
       });
 
-      /* FIXED REMOTE STREAM */
-      this.remoteStream = new MediaStream();
-
       peer.ontrack = (event) => {
-        const track = event.track;
-
-        const exists = this.remoteStream
-          .getTracks()
-          .some((t) => t.id === track.id);
-
-        if (!exists) {
-          this.remoteStream.addTrack(track);
+        if (!this.remoteStream) {
+          this.remoteStream = new MediaStream();
         }
+
+        event.streams[0].getTracks().forEach((track) => {
+          this.remoteStream.addTrack(track);
+        });
       };
 
-      /* ICE CANDIDATE */
       peer.onicecandidate = (event) => {
         if (!event.candidate) return;
 
         socket.emit("ice-candidate", {
           to: this.receiverId,
-          candidate: event.candidate, // IMPORTANT FIX
+          candidate: event.candidate
         });
       };
 
@@ -129,7 +114,6 @@ export const useCallStore = defineStore("call", {
       this.callActive = true;
     },
 
-    /* ================= ACCEPT CALL ================= */
     async acceptCall() {
       const call = this.incomingCall;
       if (!call) return;
@@ -138,51 +122,37 @@ export const useCallStore = defineStore("call", {
       this.callType = call.callType;
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: call.callType === "video"
-          ? { facingMode: "user" }
-          : false,
+        video: call.callType === "video",
         audio: true,
       });
 
       this.localStream = stream;
+      this.remoteStream = new MediaStream();
 
       const peer = new RTCPeerConnection({
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:stun1.l.google.com:19302" },
-          { urls: "stun:stun.cloudflare.com:3478" },
         ],
       });
 
       this.peer = peer;
 
-      /* ADD TRACKS */
       stream.getTracks().forEach((track) => {
         peer.addTrack(track, stream);
       });
 
-      /* FIXED REMOTE STREAM */
-      this.remoteStream = new MediaStream();
-
       peer.ontrack = (event) => {
-        const track = event.track;
-
-        const exists = this.remoteStream
-          .getTracks()
-          .some((t) => t.id === track.id);
-
-        if (!exists) {
+        event.streams[0].getTracks().forEach((track) => {
           this.remoteStream.addTrack(track);
-        }
+        });
       };
 
-      /* ICE */
       peer.onicecandidate = (event) => {
         if (!event.candidate) return;
 
         socket.emit("ice-candidate", {
           to: this.receiverId,
-          candidate: event.candidate,
+          candidate: event.candidate.toJSON(), // 🔥 FIX
         });
       };
 
@@ -201,8 +171,7 @@ export const useCallStore = defineStore("call", {
       this.incomingCall = null;
       this.callActive = true;
     },
-
-    /* ================= END CALL ================= */
+    
     endCall() {
       socket.emit("call-ended", {
         to: this.receiverId || this.callerId,
@@ -219,7 +188,6 @@ export const useCallStore = defineStore("call", {
       this.cleanup();
     },
 
-    /* ================= CLEANUP ================= */
     cleanup() {
       if (this.peer) {
         this.peer.close();
@@ -227,7 +195,6 @@ export const useCallStore = defineStore("call", {
       }
 
       this.localStream?.getTracks().forEach((t) => t.stop());
-
       this.remoteStream?.getTracks?.().forEach((t) => t.stop());
 
       this.localStream = null;

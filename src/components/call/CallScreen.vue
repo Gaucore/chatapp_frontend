@@ -53,7 +53,6 @@
           ref="remoteVideo"
           autoplay
           playsinline
-          playsinline 
           muted
           class="absolute inset-0 w-full h-full object-cover"
         />
@@ -79,7 +78,6 @@
           autoplay
           muted
           playsinline
-          webkit-playsinline
           class="
             absolute
             bottom-32
@@ -232,17 +230,13 @@ watch(
 watch(
   () => callStore.remoteStream,
   (stream) => {
-    if (!remoteVideo.value) return;
+    if (!remoteVideo.value || !stream) return;
 
-    if (stream) {
-      remoteVideo.value.srcObject = stream;
+    remoteVideo.value.srcObject = stream;
 
-      remoteVideo.value.onloadedmetadata = () => {
-        remoteVideo.value.play().catch(() => {});
-      };
-    } else {
-      remoteVideo.value.srcObject = null;
-    }
+    remoteVideo.value.onloadedmetadata = () => {
+      remoteVideo.value.play().catch(() => {});
+    };
   },
   { immediate: true }
 );
@@ -255,10 +249,11 @@ const toggleMic = () => {
   const stream = callStore.localStream;
   if (!stream) return;
 
-  stream.getAudioTracks().forEach(track => {
-    track.enabled = micOn.value;
+  stream.getAudioTracks().forEach(t => {
+    t.enabled = micOn.value;
   });
 };
+
 
 /* ================= SPEAKER TOGGLE ================= */
 const toggleSpeaker = () => {
@@ -266,46 +261,21 @@ const toggleSpeaker = () => {
 
   if (remoteVideo.value) {
     remoteVideo.value.muted = !speakerOn.value;
-    remoteVideo.value.volume = speakerOn.value ? 1 : 0;
   }
 };
 
-/* ================= CAMERA TOGGLE (FIXED) ================= */
-const toggleCamera = async () => {
+
+const toggleCamera = () => {
   cameraOn.value = !cameraOn.value;
 
   const stream = callStore.localStream;
   if (!stream) return;
 
-  const videoTrack = stream.getVideoTracks()[0];
-
-  // Step 1: normal toggle
-  if (videoTrack) {
-    videoTrack.enabled = cameraOn.value;
-  }
-
-  // Step 2: IMPORTANT FIX (restore camera properly)
-  if (cameraOn.value && videoTrack && videoTrack.readyState === "ended") {
-    try {
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true
-      });
-
-      const sender = callStore.peer
-        ?.getSenders()
-        .find(s => s.track?.kind === "video");
-
-      if (sender) {
-        sender.replaceTrack(newStream.getVideoTracks()[0]);
-      }
-
-      callStore.localStream = newStream;
-    } catch (err) {
-      console.log("Camera restart failed:", err);
-    }
-  }
+  stream.getVideoTracks().forEach(t => {
+    t.enabled = cameraOn.value;
+  });
 };
+
 </script>
 
 <style>
