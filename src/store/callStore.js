@@ -1,6 +1,5 @@
 import { defineStore } from "pinia";
 import socket from "../socket/socket";
-import api from "../api/axios";
 
 export const useCallStore = defineStore("call", {
   state: () => ({
@@ -16,21 +15,19 @@ export const useCallStore = defineStore("call", {
     callUser: null,
     userId: null,
 
-    // 🔥 Current chat id
     chatId: null,
   }),
 
   actions: {
-    /* ================= CHAT ID SET ================= */
-    setChatId(chatId) {
-      this.chatId = chatId;
+    setChatId(id) {
+      this.chatId = id;
     },
 
-        setUser(userId) {
-          this.userId = userId;
-        },
+    setUser(id) {
+      this.userId = id;
+    },
 
-    /* ================= INIT SOCKET ================= */
+    /* ================= SOCKET INIT ================= */
     init() {
       socket.on("incoming-call", (data) => {
         this.incomingCall = data;
@@ -38,35 +35,17 @@ export const useCallStore = defineStore("call", {
         this.callType = data.callType;
       });
 
-      socket.on("call-rejected", () => {
-          if (this.peer) {
-            this.peer.close();
-            this.peer = null;
-          }
-          this.localStream?.getTracks().forEach(track => {
-            track.stop();
-          });
-
-          this.remoteStream?.getTracks?.().forEach(track => {
-            track.stop();
-          });
-
-          this.resetCall();
-
-        });
+      socket.on("call-rejected", () => this.cleanup());
+      socket.on("call-ended", () => this.cleanup());
 
       socket.on("call-accepted", async ({ answer }) => {
         if (!this.peer) return;
 
-        try {
-          await this.peer.setRemoteDescription(
-            new RTCSessionDescription(answer)
-          );
+        await this.peer.setRemoteDescription(
+          new RTCSessionDescription(answer)
+        );
 
-          this.callActive = true;
-        } catch (error) {
-          console.log(error);
-        }
+        this.callActive = true;
       });
 
       socket.on("ice-candidate", async ({ candidate }) => {
@@ -76,375 +55,189 @@ export const useCallStore = defineStore("call", {
           await this.peer.addIceCandidate(
             new RTCIceCandidate(candidate)
           );
-        } catch (error) {
-          console.log(error);
+        } catch (e) {
+          console.log(e);
         }
-      });
-
-      socket.on("call-ended", () => {
-        if (this.peer) {
-          this.peer.close();
-          this.peer = null;
-        }
-
-        this.localStream?.getTracks().forEach((track) => {
-          track.stop();
-        });
-
-        this.remoteStream?.getTracks?.().forEach((track) => {
-          track.stop();
-        });
-
-        this.resetCall();
       });
     },
 
     /* ================= START CALL ================= */
     async startCall(toUserId, type = "video") {
-      try {
-        this.receiverId = toUserId;
-        this.callType = type;
+      this.receiverId = toUserId;
+      this.callType = type;
 
-        this.callActive = true;
-        // 🔥 Save call message
-        if (this.chatId) {
-          await api.post("/messages", {
-            chatId: this.chatId,
-            type: "call",
-            content:
-              type === "video"
-                ? "📹 Outgoing Video Call"
-                : "📞 Outgoing Audio Call",
-          });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video:
+          type === "video"
+            ? { facingMode: "user" }
+            : false,
+        audio: true,
+      });
+
+      this.localStream = stream;
+
+      const peer = new RTCPeerConnection({
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+          { urls: "stun:stun.cloudflare.com:3478" },
+        ],
+      });
+
+      this.peer = peer;
+
+      /* ADD TRACKS */
+      stream.getTracks().forEach((track) => {
+        peer.addTrack(track, stream);
+      });
+
+      /* FIXED REMOTE STREAM */
+      this.remoteStream = new MediaStream();
+
+      peer.ontrack = (event) => {
+        const track = event.track;
+
+        const exists = this.remoteStream
+          .getTracks()
+          .some((t) => t.id === track.id);
+
+        if (!exists) {
+          this.remoteStream.addTrack(track);
         }
+      };
 
-        const stream = await navigator.mediaDevices.getUserMedia({
-              video: type === "video"
-                  ? {
-                      width: 640,
-                      height: 480,
-                      facingMode: "user"
-                    }
-                  : false,
+      /* ICE CANDIDATE */
+      peer.onicecandidate = (event) => {
+        if (!event.candidate) return;
 
-              audio: {
-                  echoCancellation: true,
-                  noiseSuppression: true,
-                  autoGainControl: true,
-              },
-          });
-
-        this.localStream = stream;
-
-        const peer = new RTCPeerConnection({
-
-              iceServers: [
-
-                  {
-                      urls: [
-                          "stun:stun.l.google.com:19302",
-                          "stun:stun1.l.google.com:19302",
-                      ],
-                  },
-
-                  {
-                      urls: "stun:stun.cloudflare.com:3478",
-                  },
-
-              ],
-
-          });
-
-        this.peer = peer;
-
-        stream.getTracks().forEach((track) => {
-          peer.addTrack(track, stream);
+        socket.emit("ice-candidate", {
+          to: this.receiverId,
+          candidate: event.candidate, // IMPORTANT FIX
         });
+      };
 
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
 
-        peer.onnegotiationneeded = async () => {
+      socket.emit("call-user", {
+        to: this.receiverId,
+        from: this.userId,
+        offer,
+        callType: type,
+      });
 
-            try {
-
-                const offer = await peer.createOffer();
-
-                await peer.setLocalDescription(offer);
-
-            }
-
-            catch (e) {
-
-                console.log(e);
-
-            }
-
-        };
-
-        // peer.ontrack = (event) => {
-
-        //     if (!this.remoteStream) {
-        //         this.remoteStream = new MediaStream();
-        //     }
-
-        //     event.streams[0]
-        //         .getTracks()
-        //         .forEach(track => {
-        //             this.remoteStream.addTrack(track);
-        //         });
-
-        // };
-
-       peer.ontrack = (event) => {
-            console.log("Remote Track");
-
-            this.remoteStream = event.streams[0];
-        };
-
-       peer.onicecandidate = ({ candidate }) => {
-            if (!candidate) return;
-            socket.emit("ice-candidate", {
-                to: this.receiverId,
-                candidate,
-            });
-        };
-
-        const offer = await peer.createOffer();
-
-        await peer.setLocalDescription(offer);
-
-        socket.emit("call-user", {
-            to: this.receiverId,
-            from: this.userId,
-            offer,
-            callType: type,
-          })
-      } catch (error) {
-        console.log(error);
-      }
+      this.callActive = true;
     },
 
     /* ================= ACCEPT CALL ================= */
     async acceptCall() {
-      try {
-        const call = this.incomingCall;
+      const call = this.incomingCall;
+      if (!call) return;
 
-        if (!call) return;
+      this.receiverId = call.from;
+      this.callType = call.callType;
 
-        this.receiverId = call.from;
-        this.callType = call.callType;
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: call.callType === "video"
+          ? { facingMode: "user" }
+          : false,
+        audio: true,
+      });
 
-        // 🔥 Save incoming call message
-        if (this.chatId) {
-          await api.post("/messages", {
-            chatId: this.chatId,
-            type: "call",
-            content:
-              call.callType === "video"
-                ? "📹 Incoming Video Call"
-                : "📞 Incoming Audio Call",
-          });
+      this.localStream = stream;
+
+      const peer = new RTCPeerConnection({
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+          { urls: "stun:stun.cloudflare.com:3478" },
+        ],
+      });
+
+      this.peer = peer;
+
+      /* ADD TRACKS */
+      stream.getTracks().forEach((track) => {
+        peer.addTrack(track, stream);
+      });
+
+      /* FIXED REMOTE STREAM */
+      this.remoteStream = new MediaStream();
+
+      peer.ontrack = (event) => {
+        const track = event.track;
+
+        const exists = this.remoteStream
+          .getTracks()
+          .some((t) => t.id === track.id);
+
+        if (!exists) {
+          this.remoteStream.addTrack(track);
         }
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-               video:call.callType === "video"
-                  ? {
-                      width: 640,
-                      height: 480,
-                      facingMode: "user"
-                    }
-                  : false,
-
-              audio: {
-                  echoCancellation: true,
-                  noiseSuppression: true,
-                  autoGainControl: true,
-              },
-          });
-
-        this.localStream = stream;
-
-        const peer = new RTCPeerConnection({
-
-              iceServers: [
-
-                  {
-                      urls: [
-                          "stun:stun.l.google.com:19302",
-                          "stun:stun1.l.google.com:19302",
-                      ],
-                  },
-
-                  {
-                      urls: "stun:stun.cloudflare.com:3478",
-                  },
-
-              ],
-
-          });
-
-        this.peer = peer;
-
-        peer.onconnectionstatechange = () => {
-
-            console.log(
-                "Connection State :",
-                peer.connectionState
-            );
-
-        };
-
-        peer.oniceconnectionstatechange = () => {
-
-            console.log(
-                "ICE State :",
-                peer.iceConnectionState
-            );
-
-        };
-
-        stream.getTracks().forEach((track) => {
-          peer.addTrack(track, stream);
-        });
-
-        
-        peer.onnegotiationneeded = async () => {
-
-            try {
-
-                const offer = await peer.createOffer();
-
-                await peer.setLocalDescription(offer);
-
-            }
-
-            catch (e) {
-
-                console.log(e);
-
-            }
-
-        };
-
-
-
-
-       peer.ontrack = (event) => {
-
-          console.log("Remote Stream Accepted");
-
-          this.remoteStream = event.streams[0];
-
       };
 
-        peer.onicecandidate = (event) => {
-          if (event.candidate) {
-            socket.emit("ice-candidate", {
-              to: this.receiverId,
-              candidate: event.candidate,
-            });
-          }
-        };
+      /* ICE */
+      peer.onicecandidate = (event) => {
+        if (!event.candidate) return;
 
-        await peer.setRemoteDescription(
-          new RTCSessionDescription(call.offer)
-        );
-
-        const answer = await peer.createAnswer();
-
-        await peer.setLocalDescription(answer);
-
-        socket.emit("call-accepted", {
+        socket.emit("ice-candidate", {
           to: this.receiverId,
-          answer,
+          candidate: event.candidate,
         });
+      };
 
-        this.callActive = true;
-        this.incomingCall = null;
-      } catch (error) {
-        console.log(error);
-      }
-    },
+      await peer.setRemoteDescription(
+        new RTCSessionDescription(call.offer)
+      );
 
-    async rejectCall() {
-      try {
+      const answer = await peer.createAnswer();
+      await peer.setLocalDescription(answer);
 
-        socket.emit("reject-call", {
-          to: this.callerId,
-        });
+      socket.emit("call-accepted", {
+        to: this.receiverId,
+        answer,
+      });
 
-        if (this.peer) {
-          this.peer.close();
-          this.peer = null;
-        }
-
-        this.localStream?.getTracks().forEach(track => {
-          track.stop();
-        });
-
-        this.remoteStream?.getTracks?.().forEach(track => {
-          track.stop();
-        });
-
-        this.resetCall();
-
-      } catch (error) {
-        console.log(error);
-      }
-    },
-
-
-
-    async endCall() {
-      try {
-        if (this.chatId) {
-          await api.post("/messages", {
-            chatId: this.chatId,
-            type: "call",
-            content:
-              this.callType === "video"
-                ? "📹 Call Ended"
-                : "📞 Call Ended",
-          });
-        }
-
-        if (this.peer) {
-          this.peer.close();
-          this.peer = null;
-        }
-
-        this.localStream?.getTracks().forEach((track) =>
-          track.stop()
-        );
-        
-        this.remoteStream?.getTracks?.().forEach(track => {
-          track.stop();
-        });
-
-        this.remoteStream = null;
-
-        socket.emit("call-ended", {
-          to: this.receiverId || this.callerId,
-        });
-
-        this.resetCall();
-      } catch (error) {
-        console.log(error);
-      }
-    },
-
-    /* ================= RESET ================= */
-    resetCall() {
       this.incomingCall = null;
-      this.callActive = false;
-      this.peer = null;
+      this.callActive = true;
+    },
+
+    /* ================= END CALL ================= */
+    endCall() {
+      socket.emit("call-ended", {
+        to: this.receiverId || this.callerId,
+      });
+
+      this.cleanup();
+    },
+
+    rejectCall() {
+      socket.emit("reject-call", {
+        to: this.callerId,
+      });
+
+      this.cleanup();
+    },
+
+    /* ================= CLEANUP ================= */
+    cleanup() {
+      if (this.peer) {
+        this.peer.close();
+        this.peer = null;
+      }
+
+      this.localStream?.getTracks().forEach((t) => t.stop());
+
+      this.remoteStream?.getTracks?.().forEach((t) => t.stop());
+
       this.localStream = null;
       this.remoteStream = null;
+
+      this.incomingCall = null;
+      this.callActive = false;
       this.callType = null;
-      this.receiverId = null;
       this.callerId = null;
+      this.receiverId = null;
     },
   },
-
-
-
 });

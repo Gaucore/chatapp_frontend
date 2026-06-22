@@ -53,8 +53,8 @@
           ref="remoteVideo"
           autoplay
           playsinline
-          webkit-playsinline
-          :muted="false"
+          playsinline 
+          muted
           class="absolute inset-0 w-full h-full object-cover"
         />
 
@@ -211,42 +211,41 @@ const userAvatar = computed(() => {
 
 /* ================= STREAM BIND ================= */
 watch(
-    () => callStore.localStream,
-    async (stream) => {
-        if (stream && localVideo.value) {
-            localVideo.value.srcObject = stream;
-            try {
-                await localVideo.value.play();
-            }
-            catch (e) {
-                console.log(e);
-            }
-        }
-    },
-    { immediate: true }
-);
+  () => callStore.localStream,
+  (stream) => {
+    if (!localVideo.value) return;
 
+    if (stream) {
+      localVideo.value.srcObject = stream;
+
+      localVideo.value.onloadedmetadata = () => {
+        localVideo.value.play().catch(() => {});
+      };
+    } else {
+      localVideo.value.srcObject = null;
+    }
+  },
+  { immediate: true }
+);
 
 
 watch(
-    () => callStore.remoteStream,
-    async (stream) => {
-        if (!stream || !remoteVideo.value) return;
-        remoteVideo.value.srcObject = stream;
-        remoteVideo.value.muted = false;
-        remoteVideo.value.volume = 1;
-        try {
-            await remoteVideo.value.play();
-        }
-        catch (err) {
-            console.log("Remote Play Error", err);
-        }
-    },
-    {
-        immediate: true,
-    }
-);
+  () => callStore.remoteStream,
+  (stream) => {
+    if (!remoteVideo.value) return;
 
+    if (stream) {
+      remoteVideo.value.srcObject = stream;
+
+      remoteVideo.value.onloadedmetadata = () => {
+        remoteVideo.value.play().catch(() => {});
+      };
+    } else {
+      remoteVideo.value.srcObject = null;
+    }
+  },
+  { immediate: true }
+);
 
 
 /* ================= MIC TOGGLE ================= */
