@@ -42,7 +42,7 @@ export const useNotificationStore = defineStore("notification", {
 
     // READ ALL API
     async markAllAsRead() {
-      await api.put("/notifications/read-all");
+      // await api.put("/notifications/read-all");
 
       this.notifications.forEach(n => n.isRead = true);
       this.unreadCount = 0;

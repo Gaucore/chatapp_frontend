@@ -1,19 +1,21 @@
 import { defineStore } from "pinia";
+import agora from "../services/agoraService";
 import socket from "../socket/socket";
 
 export const useCallStore = defineStore("call", {
   state: () => ({
-    incomingCall: null,
-    peer: null,
-    localStream: null,
-    remoteStream: null,
-
     callActive: false,
     callType: null,
-    callerId: null,
-    receiverId: null,
-    callUser: null,
+
+    localAudioTrack: null,
+    localVideoTrack: null,
+    remoteVideoTrack: null,
+
+    incomingCall: null,
+
+    channel: null,
     userId: null,
+    receiverId: null,
   }),
 
   actions: {
@@ -24,90 +26,39 @@ export const useCallStore = defineStore("call", {
     init() {
       socket.on("incoming-call", (data) => {
         this.incomingCall = data;
-        this.callerId = data.from;
-        this.callType = data.callType;
       });
 
-      socket.on("call-ended", () => this.cleanup());
-      socket.on("call-rejected", () => this.cleanup());
-
-      socket.on("call-accepted", async ({ answer }) => {
-        if (!this.peer) return;
-        await this.peer.setRemoteDescription(
-          new RTCSessionDescription(answer)
-        );
-      });
-
-      socket.on("ice-candidate", async ({ candidate }) => {
-        if (!this.peer || !candidate) return;
-
-        try {
-          await this.peer.addIceCandidate(
-            new RTCIceCandidate(candidate)
-          );
-        } catch (e) {
-          console.log("ICE error:", e);
-        }
-      });
-    },
-
-    createPeer() {
-      const peer = new RTCPeerConnection({
-        iceServers: [
-          { urls: "stun:stun.l.google.com:19302" },
-        ],
-      });
-
-      this.peer = peer;
-      this.remoteStream = new MediaStream();
-
-      // 🔥 FIX: correct video/audio receive
-      peer.ontrack = (event) => {
-        event.streams[0].getTracks().forEach((track) => {
-          this.remoteStream.addTrack(track);
-        });
-
-        this.callActive = true;
-      };
-
-      peer.onicecandidate = (event) => {
-        if (!event.candidate) return;
-
-        socket.emit("ice-candidate", {
-          to: this.receiverId || this.callerId,
-          candidate: event.candidate.toJSON(),
-        });
-      };
-
-      return peer;
+      socket.on("call-ended", () => this.endCall());
     },
 
     async startCall(toUserId, type = "video") {
-      this.receiverId = toUserId;
       this.callType = type;
+      this.receiverId = toUserId;
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: type === "video" ? true : false,
-        audio: true,
-      });
+      const channel = `call_${this.userId}_${toUserId}`;
+      this.channel = channel;
 
-      this.localStream = stream;
+      await agora.join(channel, this.userId);
 
-      const peer = this.createPeer();
+      const tracks = await agora.publishTracks(type);
 
-      // add audio + video tracks
-      stream.getTracks().forEach((track) => {
-        peer.addTrack(track, stream);
-      });
+      this.localAudioTrack = tracks.audio;
+      this.localVideoTrack = tracks.video;
 
-      const offer = await peer.createOffer();
-      await peer.setLocalDescription(offer);
+      agora.subscribeEvents(
+        () => {},
+        () => {},
+        (videoTrack) => {
+          this.remoteVideoTrack = videoTrack;
+          this.callActive = true;
+        }
+      );
 
       socket.emit("call-user", {
-        to: this.receiverId,
+        to: toUserId,
         from: this.userId,
-        offer,
         callType: type,
+        channel,
       });
     },
 
@@ -115,56 +66,40 @@ export const useCallStore = defineStore("call", {
       const call = this.incomingCall;
       if (!call) return;
 
-      this.receiverId = call.from;
       this.callType = call.callType;
+      this.receiverId = call.from;
+      this.channel = call.channel;
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: call.callType === "video",
-        audio: true,
-      });
+      await agora.join(call.channel, this.userId);
 
-      this.localStream = stream;
+      const tracks = await agora.publishTracks(call.callType);
 
-      const peer = this.createPeer();
+      this.localAudioTrack = tracks.audio;
+      this.localVideoTrack = tracks.video;
 
-      stream.getTracks().forEach((track) => {
-        peer.addTrack(track, stream);
-      });
-
-      await peer.setRemoteDescription(
-        new RTCSessionDescription(call.offer)
+      agora.subscribeEvents(
+        () => {},
+        () => {},
+        (videoTrack) => {
+          this.remoteVideoTrack = videoTrack;
+          this.callActive = true;
+        }
       );
-
-      const answer = await peer.createAnswer();
-      await peer.setLocalDescription(answer);
-
-      socket.emit("call-accepted", {
-        to: this.receiverId,
-        answer,
-      });
 
       this.incomingCall = null;
     },
 
-    endCall() {
+    async endCall() {
       socket.emit("call-ended", {
-        to: this.receiverId || this.callerId,
+        to: this.receiverId || this.incomingCall?.from,
       });
 
-      this.cleanup();
-    },
+      await agora.leave();
 
-    cleanup() {
-      if (this.peer) {
-        this.peer.close();
-        this.peer = null;
-      }
+      this.localAudioTrack = null;
+      this.localVideoTrack = null;
+      this.remoteVideoTrack = null;
 
-      this.localStream?.getTracks().forEach((t) => t.stop());
-      this.remoteStream?.getTracks?.().forEach((t) => t.stop());
-
-      this.localStream = null;
-      this.remoteStream = null;
       this.callActive = false;
       this.incomingCall = null;
     },

@@ -22,7 +22,6 @@
       </p>
 
       <div class="flex gap-10 mt-12">
-        <!-- Accept -->
         <button
           @click="callStore.acceptCall()"
           class="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center shadow-xl"
@@ -30,11 +29,10 @@
           <Phone class="w-8 h-8 text-white" />
         </button>
 
-        <!-- Reject -->
         <button
-            @click="callStore.rejectCall()"
-            class="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center shadow-xl"
-          >
+          @click="callStore.rejectCall()"
+          class="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center shadow-xl"
+        >
           <PhoneOff class="w-8 h-8 text-white" />
         </button>
       </div>
@@ -56,19 +54,12 @@
           class="absolute inset-0 w-full h-full object-cover"
         />
 
-        <div
-          class="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/70"
-        />
+        <div class="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/70" />
 
         <!-- User Info -->
         <div class="absolute top-10 left-0 right-0 text-center z-20">
-          <h2 class="text-3xl font-semibold">
-            {{ userName }}
-          </h2>
-
-          <p class="text-gray-300">
-            Connected
-          </p>
+          <h2 class="text-3xl font-semibold">{{ userName }}</h2>
+          <p class="text-gray-300">Connected</p>
         </div>
 
         <!-- Local Video -->
@@ -77,85 +68,42 @@
           autoplay
           playsinline
           muted
-          class="
-            absolute
-            bottom-32
-            right-4
-            md:right-8
-            w-28
-            h-40
-            md:w-44
-            md:h-56
-            rounded-2xl
-            object-cover
-            border
-            border-white/20
-            shadow-2xl
-            z-30
-          "
+          class="absolute bottom-32 right-4 md:right-8 w-28 h-40 md:w-44 md:h-56 rounded-2xl object-cover border border-white/20 shadow-2xl z-30"
         />
       </div>
 
       <!-- AUDIO CALL -->
       <div
         v-else
-        class="
-          h-full
-          flex
-          flex-col
-          items-center
-          justify-center
-          bg-gradient-to-b
-          from-[#111827]
-          to-black
-          text-white
-        "
+        class="h-full flex flex-col items-center justify-center bg-gradient-to-b from-[#111827] to-black text-white"
       >
         <img
           :src="userAvatar"
-          class="
-            w-40
-            h-40
-            rounded-full
-            object-cover
-            border-4
-            border-white/10
-            shadow-2xl
-          "
+          class="w-40 h-40 rounded-full object-cover border-4 border-white/10 shadow-2xl"
         />
 
-        <h2 class="mt-8 text-4xl font-semibold">
-          {{ userName }}
-        </h2>
+        <h2 class="mt-8 text-4xl font-semibold">{{ userName }}</h2>
 
-        <p class="text-gray-400 mt-3 text-lg">
-          Audio Call Connected
-        </p>
+        <p class="text-gray-400 mt-3 text-lg">Audio Call Connected</p>
       </div>
 
       <!-- ================= CONTROLS ================= -->
-      <div
-        class="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 z-50"
-      >
+      <div class="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 z-50">
 
-        <!-- SPEAKER -->
         <button @click="toggleSpeaker" class="call-btn">
           <Volume2 v-if="speakerOn" class="icon" />
           <VolumeX v-else class="icon" />
         </button>
 
-        <!-- MIC -->
         <button @click="toggleMic" class="call-btn">
           <Mic v-if="micOn" class="icon" />
           <MicOff v-else class="icon" />
         </button>
 
-        <!-- END -->
         <button @click="callStore.endCall()" class="end-btn">
           <PhoneOff class="icon" />
         </button>
 
-        <!-- CAMERA -->
         <button
           v-if="callStore.callType === 'video'"
           @click="toggleCamera"
@@ -169,19 +117,12 @@
     </template>
   </div>
 </template>
-<script setup>
-import { ref, watch, computed } from "vue";
-import { useCallStore } from "../../store/callStore";
 
+<script setup>
+import { ref, watch, computed, nextTick } from "vue";
+import { useCallStore } from "../../store/callStore";
 import {
-  Phone,
-  PhoneOff,
-  Mic,
-  MicOff,
-  Volume2,
-  VolumeX,
-  Video,
-  VideoOff
+  Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX, Video, VideoOff
 } from "lucide-vue-next";
 
 const callStore = useCallStore();
@@ -189,86 +130,58 @@ const callStore = useCallStore();
 const localVideo = ref(null);
 const remoteVideo = ref(null);
 
-/* ================= STATES ================= */
 const micOn = ref(true);
 const speakerOn = ref(true);
 const cameraOn = ref(true);
 
-/* ================= USER ================= */
-const userName = computed(() => {
-  return callStore.callUser?.name || "User";
-});
+/* ================= FIX USER ================= */
+const userName = computed(() =>
+  callStore.incomingCall?.from || "User"
+);
 
-const userAvatar = computed(() => {
-  return (
-    callStore.callUser?.avatar ||
-    "https://ui-avatars.com/api/?name=User"
-  );
-});
+const userAvatar = computed(() =>
+  callStore.incomingCall?.avatar ||
+  "https://ui-avatars.com/api/?name=User"
+);
 
-/* ================= STREAM BIND ================= */
+/* ================= FIX AGORA TRACK PLAY ================= */
+const playTrack = async (track, el) => {
+  if (!track || !el) return;
+  await nextTick();
+  track.play(el);
+};
+
+/* ================= FIXED STREAM BIND ================= */
 watch(
-  () => callStore.localStream,
-  (stream) => {
-    if (!stream || !localVideo.value) return;
-
-    setTimeout(() => {
-      localVideo.value.srcObject = stream;
-      localVideo.value.muted = true;
-      localVideo.value.play().catch(() => {});
-    }, 150);
+  () => callStore.localVideoTrack,
+  async (track) => {
+    await playTrack(track, localVideo.value);
   },
   { immediate: true }
 );
 
 watch(
-  () => callStore.remoteStream,
-  (stream) => {
-    if (!stream || !remoteVideo.value) return;
-
-    setTimeout(() => {
-      remoteVideo.value.srcObject = stream;
-      remoteVideo.value.play().catch(() => {});
-    }, 150);
+  () => callStore.remoteVideoTrack,
+  async (track) => {
+    await playTrack(track, remoteVideo.value);
   },
   { immediate: true }
 );
 
-
-/* ================= MIC TOGGLE ================= */
+/* ================= CONTROLS ================= */
 const toggleMic = () => {
   micOn.value = !micOn.value;
-
-  const stream = callStore.localStream;
-  if (!stream) return;
-
-  stream.getAudioTracks().forEach(t => {
-    t.enabled = micOn.value;
-  });
+  callStore.localAudioTrack?.setEnabled(micOn.value);
 };
 
-
-/* ================= SPEAKER TOGGLE ================= */
 const toggleSpeaker = () => {
   speakerOn.value = !speakerOn.value;
-
-  if (remoteVideo.value) {
-    remoteVideo.value.muted = !speakerOn.value;
-  }
 };
-
 
 const toggleCamera = () => {
   cameraOn.value = !cameraOn.value;
-
-  const stream = callStore.localStream;
-  if (!stream) return;
-
-  stream.getVideoTracks().forEach(t => {
-    t.enabled = cameraOn.value;
-  });
+  callStore.localVideoTrack?.setEnabled(cameraOn.value);
 };
-
 </script>
 
 <style>
