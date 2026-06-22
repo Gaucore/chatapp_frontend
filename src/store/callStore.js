@@ -89,12 +89,19 @@ export const useCallStore = defineStore("call", {
       this.incomingCall = null;
     },
 
+    rejectCall() {
+      this.endCall();
+    },
+
     async endCall() {
       socket.emit("call-ended", {
         to: this.receiverId || this.incomingCall?.from,
       });
 
       await agora.leave();
+
+      this.localAudioTrack?.close();
+      this.localVideoTrack?.close();
 
       this.localAudioTrack = null;
       this.localVideoTrack = null;

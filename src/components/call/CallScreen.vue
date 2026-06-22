@@ -119,7 +119,7 @@
 </template>
 
 <script setup>
-import { ref, watch, computed, nextTick } from "vue";
+import { ref, watch, computed, nextTick, onMounted } from "vue";
 import { useCallStore } from "../../store/callStore";
 import {
   Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX, Video, VideoOff
@@ -155,7 +155,9 @@ const playTrack = async (track, el) => {
 watch(
   () => callStore.localVideoTrack,
   async (track) => {
-    await playTrack(track, localVideo.value);
+    if (track && localVideo.value) {
+      await playTrack(track, localVideo.value);
+    }
   },
   { immediate: true }
 );
@@ -163,7 +165,9 @@ watch(
 watch(
   () => callStore.remoteVideoTrack,
   async (track) => {
-    await playTrack(track, remoteVideo.value);
+    if (track && remoteVideo.value) {
+      await playTrack(track, remoteVideo.value);
+    }
   },
   { immediate: true }
 );
@@ -182,6 +186,11 @@ const toggleCamera = () => {
   cameraOn.value = !cameraOn.value;
   callStore.localVideoTrack?.setEnabled(cameraOn.value);
 };
+
+/* ================= INIT SOCKET ================= */
+onMounted(() => {
+  callStore.init();
+});
 </script>
 
 <style>

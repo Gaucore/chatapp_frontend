@@ -1,6 +1,7 @@
 import AgoraRTC from "agora-rtc-sdk-ng";
 
 const APP_ID = "ab994c07eee7434887a63166f8afcf40";
+const API_BASE = "https://chatapp-backend-3exy.onrender.com";
 
 class AgoraService {
   constructor() {
@@ -8,35 +9,62 @@ class AgoraService {
       mode: "rtc",
       codec: "vp8",
     });
+  }
 
-    this.localAudioTrack = null;
-    this.localVideoTrack = null;
+  // 🔥 FIXED TOKEN REQUEST (safe + validation)
+  async getToken(channel, uid) {
+    try {
+      if (!channel) throw new Error("Channel is missing");
+      if (!uid) uid = 1; // fallback
+
+      const res = await fetch(`${API_BASE}/agora/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          channelName: channel,
+          uid: Number(uid),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error("Backend Error:", data);
+        throw new Error(data?.error || "Token API failed");
+      }
+
+      if (!data.token) {
+        throw new Error("Token not received from backend");
+      }
+
+      return data.token;
+    } catch (err) {
+      console.error("Agora getToken error:", err);
+      throw err;
+    }
   }
 
   async join(channel, uid) {
-    await this.client.join(APP_ID, channel, null, uid);
+    const token = await this.getToken(channel, uid);
+
+    await this.client.join(APP_ID, channel, token, uid);
   }
 
   async publishTracks(type = "video") {
-    this.localAudioTrack =
-      await AgoraRTC.createMicrophoneAudioTrack();
+    const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+
+    let videoTrack = null;
 
     if (type === "video") {
-      this.localVideoTrack =
-        await AgoraRTC.createCameraVideoTrack();
-
-      await this.client.publish([
-        this.localAudioTrack,
-        this.localVideoTrack,
-      ]);
+      videoTrack = await AgoraRTC.createCameraVideoTrack();
+      await this.client.publish([audioTrack, videoTrack]);
     } else {
-      await this.client.publish([this.localAudioTrack]);
+      await this.client.publish([audioTrack]);
     }
 
-    return {
-      audio: this.localAudioTrack,
-      video: this.localVideoTrack,
-    };
+    return { audio: audioTrack, video: videoTrack };
   }
 
   subscribeEvents(onJoin, onLeave, onVideo) {
@@ -44,7 +72,7 @@ class AgoraService {
       await this.client.subscribe(user, mediaType);
 
       if (mediaType === "video") {
-        onVideo(user.videoTrack);
+        onVideo?.(user.videoTrack);
       }
 
       if (mediaType === "audio") {
@@ -60,8 +88,6 @@ class AgoraService {
   }
 
   async leave() {
-    this.localAudioTrack?.close();
-    this.localVideoTrack?.close();
     await this.client.leave();
   }
 }
