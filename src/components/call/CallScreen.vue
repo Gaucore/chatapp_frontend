@@ -47,10 +47,9 @@
         class="relative w-full h-full"
       >
         <!-- Remote -->
-        <video
+       <video
           ref="remoteVideo"
-          autoplay
-          playsinline
+          id="remote-video"
           class="absolute inset-0 w-full h-full object-cover"
         />
 
@@ -65,9 +64,7 @@
         <!-- Local Video -->
         <video
           ref="localVideo"
-          autoplay
-          playsinline
-          muted
+          id="local-video"
           class="absolute bottom-32 right-4 md:right-8 w-28 h-40 md:w-44 md:h-56 rounded-2xl object-cover border border-white/20 shadow-2xl z-30"
         />
       </div>
@@ -154,24 +151,31 @@ const playTrack = async (track, el) => {
 /* ================= FIXED STREAM BIND ================= */
 watch(
   () => callStore.localVideoTrack,
-  async (track) => {
-    if (track && localVideo.value) {
-      await playTrack(track, localVideo.value);
-    }
-  },
-  { immediate: true }
+  (track) => {
+    if (!track) return;
+
+    const play = () => {
+      const el = document.getElementById("local-video");
+      if (el) track.play(el);
+    };
+
+    setTimeout(play, 600);
+  }
 );
 
 watch(
   () => callStore.remoteVideoTrack,
-  async (track) => {
-    if (track && remoteVideo.value) {
-      await playTrack(track, remoteVideo.value);
-    }
-  },
-  { immediate: true }
-);
+  (track) => {
+    if (!track) return;
 
+    const play = () => {
+      const el = document.getElementById("remote-video");
+      if (el) track.play(el);
+    };
+
+    setTimeout(play, 600);
+  }
+);
 /* ================= CONTROLS ================= */
 const toggleMic = () => {
   micOn.value = !micOn.value;

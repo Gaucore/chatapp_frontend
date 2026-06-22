@@ -1,7 +1,9 @@
 import AgoraRTC from "agora-rtc-sdk-ng";
 
 const APP_ID = "ab994c07eee7434887a63166f8afcf40";
+// const API_BASE = "http://localhost:5000";
 const API_BASE = "https://chatapp-backend-3exy.onrender.com";
+
 
 class AgoraService {
   constructor() {
@@ -11,85 +13,70 @@ class AgoraService {
     });
   }
 
-  // 🔥 FIXED TOKEN REQUEST (safe + validation)
   async getToken(channel, uid) {
-    try {
-      if (!channel) throw new Error("Channel is missing");
-      if (!uid) uid = 1; // fallback
+    const safeUid =
+      uid && uid !== "null"
+        ? Number(uid)
+        : Math.floor(Math.random() * 100000);
 
-      const res = await fetch(`${API_BASE}/agora/token`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          channelName: channel,
-          uid: Number(uid),
-        }),
-      });
+    const res = await fetch(`${API_BASE}/agora/token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        channelName: channel,
+        uid: safeUid,
+      }),
+    });
 
-      const data = await res.json();
+    const data = await res.json();
 
-      if (!res.ok) {
-        console.error("Backend Error:", data);
-        throw new Error(data?.error || "Token API failed");
-      }
+    console.log("TOKEN RESPONSE:", data);
 
-      if (!data.token) {
-        throw new Error("Token not received from backend");
-      }
-
-      return data.token;
-    } catch (err) {
-      console.error("Agora getToken error:", err);
-      throw err;
+    if (!res.ok || !data.token) {
+      throw new Error(data.error || "Token failed");
     }
+
+    return {
+      token: data.token,
+      uid: data.uid || safeUid,
+    };
   }
 
   async join(channel, uid) {
-    const token = await this.getToken(channel, uid);
+    const { token, uid: safeUid } = await this.getToken(channel, uid);
 
-    await this.client.join(APP_ID, channel, token, uid);
+    await this.client.join(APP_ID, channel, token, safeUid);
   }
 
-  async publishTracks(type = "video") {
-    const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+  async publishTracks(type) {
+      if (type === "video") {
+        const [audioTrack, videoTrack] =
+          await AgoraRTC.createMicrophoneAndCameraTracks();
 
-    let videoTrack = null;
+        await this.client.publish([audioTrack, videoTrack]);
 
-    if (type === "video") {
-      videoTrack = await AgoraRTC.createCameraVideoTrack();
-      await this.client.publish([audioTrack, videoTrack]);
-    } else {
+        return { audio: audioTrack, video: videoTrack };
+      }
+
+      const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
       await this.client.publish([audioTrack]);
+
+      return { audio: audioTrack };
     }
 
-    return { audio: audioTrack, video: videoTrack };
-  }
-
-  subscribeEvents(onJoin, onLeave, onVideo) {
-    this.client.on("user-published", async (user, mediaType) => {
-      await this.client.subscribe(user, mediaType);
-
-      if (mediaType === "video") {
-        onVideo?.(user.videoTrack);
+ async leave() {
+    try {
+      if (this.client) {
+        await this.client.unpublish?.();
+        await this.client.leave();
       }
-
-      if (mediaType === "audio") {
-        user.audioTrack.play();
-      }
-
-      onJoin?.(user);
-    });
-
-    this.client.on("user-unpublished", (user) => {
-      onLeave?.(user);
-    });
+    } catch (err) {
+      console.log("Leave ignored:", err);
+    }
   }
 
-  async leave() {
-    await this.client.leave();
-  }
 }
 
 export default new AgoraService();

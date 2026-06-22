@@ -149,6 +149,7 @@ const previewType = ref("");
 onMounted(async () => {
   if (!authStore.user) await authStore.getCurrentUser();
 
+   callStore.setUser(authStore.user?._id);
 
   await userStore.getUsers();
   messageStore.initSocketListeners();
@@ -162,6 +163,16 @@ onMounted(async () => {
     notificationStore.addNotification(data);
   });
 });
+
+watch(
+  () => authStore.user,
+  (user) => {
+    if (user?._id) {
+      callStore.setUser(user._id);
+    }
+  },
+  { immediate: true }
+);
 
 /* ================= PREVIEW ================= */
 const openPreview = (payload) => {
