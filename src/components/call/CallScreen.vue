@@ -53,6 +53,7 @@
           ref="remoteVideo"
           autoplay
           playsinline
+           :muted="false"
           class="absolute inset-0 w-full h-full object-cover"
         />
 
@@ -208,24 +209,38 @@ const userAvatar = computed(() => {
 
 /* ================= STREAM BIND ================= */
 watch(
-  () => callStore.localStream,
-  (stream) => {
-    if (stream && localVideo.value) {
-      localVideo.value.srcObject = stream;
-    }
-  },
-  { immediate: true }
+    () => callStore.localStream,
+    async (stream) => {
+        if (stream && localVideo.value) {
+            localVideo.value.srcObject = stream;
+            try {
+                await localVideo.value.play();
+            }
+            catch (e) {
+                console.log(e);
+            }
+        }
+    },
+    { immediate: true }
 );
 
 watch(
-  () => callStore.remoteStream,
-  (stream) => {
-    if (stream && remoteVideo.value) {
-      remoteVideo.value.srcObject = stream;
-    }
-  },
-  { immediate: true }
+    () => callStore.remoteStream,
+    async (stream) => {
+        if (stream && remoteVideo.value) {
+            remoteVideo.value.srcObject = stream;
+            try {
+                await remoteVideo.value.play();
+            }
+            catch (e) {
+                console.log(e);
+            }
+        }
+    },
+    { immediate: true }
 );
+
+
 
 /* ================= MIC TOGGLE ================= */
 const toggleMic = () => {

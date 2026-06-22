@@ -177,10 +177,7 @@ const openPreview = (payload) => {
 
 
 const handleDelete = async (messageId) => {
-  await messageStore.deleteMessage(
-    messageId,
-    chatStore.activeChat._id
-  );
+   await messageStore.deleteMessage(messageId);
 };
 
 

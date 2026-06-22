@@ -4,6 +4,12 @@ const api = axios.create({
   baseURL: "https://chatapp-backend-3exy.onrender.com/api",
 });
 
+
+// const api = axios.create({
+//   baseURL: "http://localhost:5000/api",
+// });
+
+
 api.interceptors.request.use(
   (config) => {
     const token =

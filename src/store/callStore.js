@@ -118,10 +118,20 @@ export const useCallStore = defineStore("call", {
           });
         }
 
-        const stream =
-          await navigator.mediaDevices.getUserMedia({
-            video: type === "video",
-            audio: true,
+        const stream = await navigator.mediaDevices.getUserMedia({
+              video: type === "video"
+                  ? {
+                      width: 640,
+                      height: 480,
+                      facingMode: "user"
+                    }
+                  : false,
+
+              audio: {
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                  autoGainControl: true,
+              },
           });
 
         this.localStream = stream;
@@ -129,7 +139,10 @@ export const useCallStore = defineStore("call", {
         const peer = new RTCPeerConnection({
           iceServers: [
             {
-              urls: "stun:stun.l.google.com:19302",
+              urls: [
+                "stun:stun.l.google.com:19302",
+                "stun:stun1.l.google.com:19302",
+              ],
             },
           ],
         });
@@ -141,16 +154,25 @@ export const useCallStore = defineStore("call", {
         });
 
         peer.ontrack = (event) => {
-          this.remoteStream = event.streams[0];
+
+            if (!this.remoteStream) {
+                this.remoteStream = new MediaStream();
+            }
+
+            event.streams[0]
+                .getTracks()
+                .forEach(track => {
+                    this.remoteStream.addTrack(track);
+                });
+
         };
 
-        peer.onicecandidate = (event) => {
-          if (event.candidate) {
+       peer.onicecandidate = ({ candidate }) => {
+            if (!candidate) return;
             socket.emit("ice-candidate", {
-              to: this.receiverId,
-              candidate: event.candidate,
+                to: this.receiverId,
+                candidate,
             });
-          }
         };
 
         const offer = await peer.createOffer();
@@ -190,10 +212,20 @@ export const useCallStore = defineStore("call", {
           });
         }
 
-        const stream =
-          await navigator.mediaDevices.getUserMedia({
-            video: call.callType === "video",
-            audio: true,
+        const stream = await navigator.mediaDevices.getUserMedia({
+               video:call.callType === "video"
+                  ? {
+                      width: 640,
+                      height: 480,
+                      facingMode: "user"
+                    }
+                  : false,
+
+              audio: {
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                  autoGainControl: true,
+              },
           });
 
         this.localStream = stream;
@@ -201,20 +233,51 @@ export const useCallStore = defineStore("call", {
         const peer = new RTCPeerConnection({
           iceServers: [
             {
-              urls: "stun:stun.l.google.com:19302",
+              urls: [
+                "stun:stun.l.google.com:19302",
+                "stun:stun1.l.google.com:19302",
+              ],
             },
           ],
         });
 
         this.peer = peer;
 
+        peer.onconnectionstatechange = () => {
+
+            console.log(
+                "Connection State :",
+                peer.connectionState
+            );
+
+        };
+
+        peer.oniceconnectionstatechange = () => {
+
+            console.log(
+                "ICE State :",
+                peer.iceConnectionState
+            );
+
+        };
+
         stream.getTracks().forEach((track) => {
           peer.addTrack(track, stream);
         });
 
-        peer.ontrack = (event) => {
-          this.remoteStream = event.streams[0];
-        };
+       peer.ontrack = (event) => {
+
+          if (!this.remoteStream) {
+              this.remoteStream = new MediaStream();
+          }
+
+          event.streams[0]
+              .getTracks()
+              .forEach(track => {
+                  this.remoteStream.addTrack(track);
+              });
+
+      };
 
         peer.onicecandidate = (event) => {
           if (event.candidate) {

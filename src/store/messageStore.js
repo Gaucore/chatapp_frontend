@@ -68,19 +68,19 @@ export const useMessageStore = defineStore("message", {
       // socket.emit("send-message", res.data.message);
     },
 
-    async deleteMessage(messageId, chatId) {
-      await api.delete(`/messages/${messageId}`);
+    async deleteMessage(messageId) {
+      try {
+        await api.delete(`/messages/${messageId}`);
 
-      socket.emit("delete-message", {
-        messageId,
-        chatId,
-      });
-
-      this.messages = this.messages.filter(
-        (m) => m._id !== messageId
-      );
+        // Remove only from current user's UI
+        this.messages = this.messages.filter(
+          (m) => m._id !== messageId
+        );
+      } catch (err) {
+        console.log(err);
+      }
     },
-
+    
     initSocketListeners() {
       socket.off("receive-message");
       socket.off("message-deleted");
