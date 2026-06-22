@@ -14,14 +14,9 @@ export const useCallStore = defineStore("call", {
     receiverId: null,
     callUser: null,
     userId: null,
-    chatId: null,
   }),
 
   actions: {
-    setChatId(id) {
-      this.chatId = id;
-    },
-
     setUser(id) {
       this.userId = id;
     },
@@ -41,7 +36,6 @@ export const useCallStore = defineStore("call", {
         await this.peer.setRemoteDescription(
           new RTCSessionDescription(answer)
         );
-        this.callActive = true;
       });
 
       socket.on("ice-candidate", async ({ candidate }) => {
@@ -57,49 +51,54 @@ export const useCallStore = defineStore("call", {
       });
     },
 
-    async startCall(toUserId, type = "video") {
-      this.receiverId = toUserId;
-      this.callType = type;
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: type === "video" ? { facingMode: "user" } : false,
-        audio: true,
-      });
-
-      this.localStream = stream;
-      this.remoteStream = new MediaStream(); // FIXED
-
+    createPeer() {
       const peer = new RTCPeerConnection({
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:stun1.l.google.com:19302" },
         ],
       });
 
       this.peer = peer;
+      this.remoteStream = new MediaStream();
 
-      stream.getTracks().forEach((track) => {
-        peer.addTrack(track, stream);
-      });
-
+      // 🔥 FIX: correct video/audio receive
       peer.ontrack = (event) => {
-        if (!this.remoteStream) {
-          this.remoteStream = new MediaStream();
-        }
-
         event.streams[0].getTracks().forEach((track) => {
           this.remoteStream.addTrack(track);
         });
+
+        this.callActive = true;
       };
 
       peer.onicecandidate = (event) => {
         if (!event.candidate) return;
 
         socket.emit("ice-candidate", {
-          to: this.receiverId,
-          candidate: event.candidate
+          to: this.receiverId || this.callerId,
+          candidate: event.candidate.toJSON(),
         });
       };
+
+      return peer;
+    },
+
+    async startCall(toUserId, type = "video") {
+      this.receiverId = toUserId;
+      this.callType = type;
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: type === "video" ? true : false,
+        audio: true,
+      });
+
+      this.localStream = stream;
+
+      const peer = this.createPeer();
+
+      // add audio + video tracks
+      stream.getTracks().forEach((track) => {
+        peer.addTrack(track, stream);
+      });
 
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
@@ -110,8 +109,6 @@ export const useCallStore = defineStore("call", {
         offer,
         callType: type,
       });
-
-      this.callActive = true;
     },
 
     async acceptCall() {
@@ -127,34 +124,12 @@ export const useCallStore = defineStore("call", {
       });
 
       this.localStream = stream;
-      this.remoteStream = new MediaStream();
 
-      const peer = new RTCPeerConnection({
-        iceServers: [
-          { urls: "stun:stun.l.google.com:19302" },
-        ],
-      });
-
-      this.peer = peer;
+      const peer = this.createPeer();
 
       stream.getTracks().forEach((track) => {
         peer.addTrack(track, stream);
       });
-
-      peer.ontrack = (event) => {
-        event.streams[0].getTracks().forEach((track) => {
-          this.remoteStream.addTrack(track);
-        });
-      };
-
-      peer.onicecandidate = (event) => {
-        if (!event.candidate) return;
-
-        socket.emit("ice-candidate", {
-          to: this.receiverId,
-          candidate: event.candidate.toJSON(), // 🔥 FIX
-        });
-      };
 
       await peer.setRemoteDescription(
         new RTCSessionDescription(call.offer)
@@ -169,20 +144,11 @@ export const useCallStore = defineStore("call", {
       });
 
       this.incomingCall = null;
-      this.callActive = true;
     },
-    
+
     endCall() {
       socket.emit("call-ended", {
         to: this.receiverId || this.callerId,
-      });
-
-      this.cleanup();
-    },
-
-    rejectCall() {
-      socket.emit("reject-call", {
-        to: this.callerId,
       });
 
       this.cleanup();
@@ -199,12 +165,8 @@ export const useCallStore = defineStore("call", {
 
       this.localStream = null;
       this.remoteStream = null;
-
-      this.incomingCall = null;
       this.callActive = false;
-      this.callType = null;
-      this.callerId = null;
-      this.receiverId = null;
+      this.incomingCall = null;
     },
   },
 });

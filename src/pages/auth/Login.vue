@@ -4,9 +4,19 @@
     <!-- CARD -->
     <div class="w-full max-w-sm bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 shadow-2xl text-white">
 
-      <!-- BACK -->
-      <div class="mb-4 text-gray-300 text-sm">
-        ← Back
+      <!-- TOP BAR -->
+      <div class="flex justify-between items-center mb-4">
+
+        <!-- BACK -->
+        <div class="text-gray-300 text-sm cursor-pointer hover:text-white">
+          ← Back
+        </div>
+
+        <!-- VERSION BADGE -->
+        <div class="px-3 py-1 text-[11px] rounded-full bg-white/10 border border-white/20 text-gray-200 backdrop-blur-md">
+          v{{ serverVersion }}
+        </div>
+
       </div>
 
       <!-- TITLE -->
@@ -85,29 +95,33 @@ import { ref } from "vue";
 import { useAuthStore } from "../../store/authStore";
 import { useRouter } from "vue-router";
 import { useCallStore } from "../../store/callStore";
+import pkg from "../../../package.json";
 
 const email = ref("");
 const password = ref("");
 
+// ✅ VERSION FROM PACKAGE.JSON
+const serverVersion = ref(pkg.version);
+
 const auth = useAuthStore();
 const router = useRouter();
-const callStore = useCallStore(); 
+const callStore = useCallStore();
 
 const onSubmit = async () => {
   await auth.login(email.value, password.value);
-   const user = auth.user;
 
-   if (user?._id) {
+  const user = auth.user;
+
+  if (user?._id) {
     callStore.setUser(user._id);
   }
-
 
   router.push("/home");
 };
 </script>
 
 <style scoped>
-/* ✅ FIX VANT INPUT TEXT COLOR */
+/* FIX VANT INPUT TEXT COLOR */
 :deep(.van-field__control) {
   color: #fff !important;
   -webkit-text-fill-color: #fff !important;

@@ -53,7 +53,6 @@
           ref="remoteVideo"
           autoplay
           playsinline
-          muted
           class="absolute inset-0 w-full h-full object-cover"
         />
 
@@ -76,8 +75,8 @@
         <video
           ref="localVideo"
           autoplay
-          muted
           playsinline
+          muted
           class="
             absolute
             bottom-32
@@ -211,32 +210,26 @@ const userAvatar = computed(() => {
 watch(
   () => callStore.localStream,
   (stream) => {
-    if (!localVideo.value) return;
+    if (!stream || !localVideo.value) return;
 
-    if (stream) {
+    setTimeout(() => {
       localVideo.value.srcObject = stream;
-
-      localVideo.value.onloadedmetadata = () => {
-        localVideo.value.play().catch(() => {});
-      };
-    } else {
-      localVideo.value.srcObject = null;
-    }
+      localVideo.value.muted = true;
+      localVideo.value.play().catch(() => {});
+    }, 150);
   },
   { immediate: true }
 );
 
-
 watch(
   () => callStore.remoteStream,
   (stream) => {
-    if (!remoteVideo.value || !stream) return;
+    if (!stream || !remoteVideo.value) return;
 
-    remoteVideo.value.srcObject = stream;
-
-    remoteVideo.value.onloadedmetadata = () => {
+    setTimeout(() => {
+      remoteVideo.value.srcObject = stream;
       remoteVideo.value.play().catch(() => {});
-    };
+    }, 150);
   },
   { immediate: true }
 );
