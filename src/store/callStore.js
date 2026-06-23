@@ -24,6 +24,44 @@ export const useCallStore = defineStore("call", {
       this.userId = id;
     },
 
+    subscribeRemote(user, mediaType) {
+
+        if (mediaType === "audio") {
+
+            if (user.audioTrack) {
+
+                console.log("REMOTE AUDIO");
+
+                user.audioTrack.play();
+
+            }
+
+        }
+
+        if (mediaType === "video") {
+
+            if (user.videoTrack) {
+
+                this.remoteVideoTrack = user.videoTrack;
+
+                setTimeout(() => {
+
+                    const el = document.getElementById("remote-video");
+
+                    if (el) {
+
+                        user.videoTrack.play(el);
+
+                    }
+
+                },300);
+
+            }
+
+        }
+
+    },
+
     init() {
       socket.off("incoming-call");
       socket.off("call-ended");
@@ -137,6 +175,7 @@ export const useCallStore = defineStore("call", {
 
           const channel = `call_${this.userId}_${toUserId}`;
           this.channel = channel;
+          await agora.leave().catch(() => {});
 
           await agora.join(channel, this.userId);
 
@@ -172,6 +211,8 @@ export const useCallStore = defineStore("call", {
             }
 
             if (mediaType === "audio") {
+                console.log("REMOTE AUDIO RECEIVED");
+               await agora.client.subscribe(user, mediaType);
               user.audioTrack?.play();
             }
           });
@@ -209,6 +250,7 @@ export const useCallStore = defineStore("call", {
           this.channel = channel;
 
           this.incomingCall = null;
+          await agora.leave().catch(() => {});
 
           await agora.join(channel, this.userId);
 
@@ -255,6 +297,9 @@ export const useCallStore = defineStore("call", {
             }
 
             if (mediaType === "audio") {
+                console.log("REMOTE AUDIO RECEIVED");
+                 await agora.client.subscribe(user, mediaType);
+
               user.audioTrack?.play();
             }
           });

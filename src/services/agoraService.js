@@ -11,6 +11,7 @@ class AgoraService {
       mode: "rtc",
       codec: "vp8",
     });
+    
   }
 
   async getToken(channel, uid) {
@@ -60,22 +61,56 @@ class AgoraService {
         return { audio: audioTrack, video: videoTrack };
       }
 
-      const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+      const audioTrack = await AgoraRTC.createMicrophoneAudioTrack({  AEC: true, ANS: true, AGC: true,});
       await this.client.publish([audioTrack]);
 
       return { audio: audioTrack };
     }
 
- async leave() {
-    try {
-      if (this.client) {
-        await this.client.unpublish?.();
+    // async leave() {
+    //   try {
+    //     if (this.client) {
+    //       await this.client.unpublish?.();
+    //       await this.client.leave();
+    //     }
+    //   } catch (err) {
+    //     console.log("Leave ignored:", err);
+    //   }
+    // }
+
+    async leave() {
+      try {
+
+        if (!this.client) return;
+
+        const localTracks = [];
+
+        this.client.localTracks?.forEach(track => {
+          if (track) {
+            localTracks.push(track);
+          }
+        });
+
+        for (const track of localTracks) {
+          try {
+            await this.client.unpublish(track);
+          } catch (e) {}
+
+          try {
+            track.stop();
+          } catch (e) {}
+
+          try {
+            track.close();
+          } catch (e) {}
+        }
+
         await this.client.leave();
+
+      } catch (err) {
+        console.log("Leave ignored:", err);
       }
-    } catch (err) {
-      console.log("Leave ignored:", err);
     }
-  }
 
 }
 

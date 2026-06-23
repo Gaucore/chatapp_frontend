@@ -52,7 +52,6 @@
           id="remote-video"
           autoplay
           playsinline
-          muted="false"
           class="absolute inset-0 w-full h-full object-cover bg-black"
         />
 
@@ -66,9 +65,12 @@
 
         <!-- Local Video -->
         <video
-          ref="localVideo"
-          id="local-video"
-          class="absolute bottom-32 right-4 md:right-8 w-28 h-40 md:w-44 md:h-56 rounded-2xl object-cover border border-white/20 shadow-2xl z-30"
+            ref="localVideo"
+            id="local-video"
+            autoplay
+            playsinline
+            muted
+            class="absolute bottom-32 right-4 md:right-8 w-28 h-40 md:w-44 md:h-56 rounded-2xl object-cover border border-white/20 shadow-2xl z-30"
         />
       </div>
 
@@ -79,7 +81,7 @@
       >
         <img
           :src="userAvatar"
-          class="w-40 h-40 rounded-full object-cover border-4 border-white/10 shadow-2xl"
+          class="w-40 h-40 rounded-full object-cover border-4 border-white/10"
         />
 
         <h2 class="mt-8 text-4xl font-semibold">{{ userName }}</h2>
@@ -196,7 +198,18 @@ const toggleMic = () => {
 };
 
 const toggleSpeaker = () => {
-  speakerOn.value = !speakerOn.value;
+
+    speakerOn.value = !speakerOn.value;
+
+    if (
+        callStore.remoteVideoTrack &&
+        callStore.remoteVideoTrack.setEnabled
+    ) {
+        callStore.remoteVideoTrack.setEnabled(
+            speakerOn.value
+        );
+    }
+
 };
 
 const toggleCamera = () => {
