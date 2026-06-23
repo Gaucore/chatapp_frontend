@@ -50,7 +50,10 @@
        <video
           ref="remoteVideo"
           id="remote-video"
-          class="absolute inset-0 w-full h-full object-cover"
+          autoplay
+          playsinline
+          muted="false"
+          class="absolute inset-0 w-full h-full object-cover bg-black"
         />
 
         <div class="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/70" />
@@ -163,19 +166,29 @@ watch(
   }
 );
 
-watch(
-  () => callStore.remoteVideoTrack,
-  (track) => {
-    if (!track) return;
+  watch(
+    () => callStore.remoteVideoTrack,
+    async (track) => {
+      if (!track) return;
 
-    const play = () => {
-      const el = document.getElementById("remote-video");
-      if (el) track.play(el);
-    };
+      await nextTick();
 
-    setTimeout(play, 600);
-  }
-);
+      setTimeout(() => {
+        const video = document.getElementById("remote-video");
+
+        console.log("REMOTE VIDEO ELEMENT =", video);
+        console.log("REMOTE TRACK =", track);
+
+        if (video) {
+          track.play(video);
+        }
+      }, 1000);
+    },
+    {
+      immediate: true,
+    }
+  );
+
 /* ================= CONTROLS ================= */
 const toggleMic = () => {
   micOn.value = !micOn.value;

@@ -241,10 +241,12 @@ export const useCallStore = defineStore("call", {
 
               if (remoteTrack) {
                 this.remoteVideoTrack = remoteTrack;
+                console.log("REMOTE TRACK STORED");
 
                 // 🔥 FORCE PLAY FIX
                 setTimeout(() => {
                   const el = document.getElementById("remote-video");
+                    console.log("VIDEO ELEMENT =", el);
                   if (el) {
                     remoteTrack.play(el);
                   }
