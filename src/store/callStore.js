@@ -153,7 +153,19 @@ export const useCallStore = defineStore("call", {
             await agora.client.subscribe(user, mediaType);
 
             if (mediaType === "video") {
-              this.remoteVideoTrack = user.videoTrack;
+              const remoteTrack = user.videoTrack;
+
+              if (remoteTrack) {
+                this.remoteVideoTrack = remoteTrack;
+
+                // 🔥 IMPORTANT FIX (receiver fix)
+                setTimeout(() => {
+                  const el = document.getElementById("remote-video");
+                  if (el) {
+                    remoteTrack.play(el);
+                  }
+                }, 500);
+              }
             }
 
             if (mediaType === "audio") {
@@ -176,116 +188,6 @@ export const useCallStore = defineStore("call", {
         }
       },
 
-
-  //   async acceptCall() {
-  //   const call = this.incomingCall;
-
-  //   if (!call || !this.userId) {
-  //     console.log("Missing call or userId");
-  //     return;
-  //   }
-
-  //     if (this.callActive || this.isJoining) return;
-  //     this.isJoining = true;
-
-  //   const channel = call.channel || `call_${call.from}_${this.userId}`;
-
-  //   try {
-  //     this.callType = call.callType;
-  //     this.receiverId = call.from;
-  //     this.channel = channel;
-
-  //     this.incomingCall = null; // move early is OK
-
-  //     await agora.join(channel, this.userId);
-
-  //     const tracks = await agora.publishTracks(call.callType);
-
-  //     this.localAudioTrack = tracks.audio;
-  //     this.localVideoTrack = tracks.video;
-
-  //     this.callActive = true;
-
-  //     agora.client.removeAllListeners("user-published");
-
-  //     agora.client.on("user-published", async (user, mediaType) => {
-  //       await agora.client.subscribe(user, mediaType);
-
-  //       if (mediaType === "video") {
-  //         this.remoteVideoTrack = user.videoTrack;
-  //       }
-
-  //       if (mediaType === "audio") {
-  //         user.audioTrack?.play();
-  //       }
-  //     });
-
-  //     // optional notify caller
-  //     socket.emit("call-accepted", {
-  //       to: call.from,
-  //       channel
-  //     });
-
-  //   } catch (err) {
-  //     console.error("ACCEPT CALL ERROR:", err);
-  //     this.forceEndCall();
-  //   }
-  //   finally {
-  //     this.isJoining = false;
-  //   }
-  // },
-
-  //   async acceptCall() {
-  //   const call = this.incomingCall;
-  //   if (!call?.channel) return;
-
-  //   try {
-  //     this.callType = call.callType;
-  //     this.receiverId = call.from;
-  //     this.channel = call.channel;
-
-  //     this.incomingCall = null;
-
-  //     // 1. JOIN FIRST
-  //     await agora.join(call.channel, this.userId);
-
-  //     // 2. CREATE TRACKS
-  //     const tracks = await agora.publishTracks(call.callType);
-
-  //     this.localAudioTrack = tracks.audio;
-  //     this.localVideoTrack = tracks.video;
-
-  //     this.callActive = true;
-
-  //     // 3. IMPORTANT FIX → WAIT FOR SUBSCRIBE PROPERLY
-  //     agora.client.removeAllListeners("user-published");
-
-  //     agora.client.on("user-published", async (user, mediaType) => {
-  //       await agora.client.subscribe(user, mediaType);
-
-  //       if (mediaType === "video") {
-  //         const remoteTrack = user.videoTrack;
-
-  //         if (remoteTrack) {
-  //           this.remoteVideoTrack = remoteTrack;
-
-  //           // FORCE PLAY FIX (IMPORTANT)
-  //           setTimeout(() => {
-  //             remoteTrack.play("remote-video");
-  //           }, 300);
-  //         }
-  //       }
-
-  //       if (mediaType === "audio") {
-  //         user.audioTrack?.play();
-  //       }
-  //     });
-
-  //   } catch (err) {
-  //     console.error("ACCEPT CALL ERROR:", err);
-  //     this.forceEndCall();
-  //   }
-  // },
     
       async acceptCall() {
         const call = this.incomingCall;
@@ -316,11 +218,35 @@ export const useCallStore = defineStore("call", {
 
           agora.client.removeAllListeners("user-published");
 
+          // agora.client.on("user-published", async (user, mediaType) => {
+          //   await agora.client.subscribe(user, mediaType);
+
+          //   if (mediaType === "video") {
+          //     this.remoteVideoTrack = user.videoTrack;
+          //   }
+
+          //   if (mediaType === "audio") {
+          //     user.audioTrack?.play();
+          //   }
+          // });
+
           agora.client.on("user-published", async (user, mediaType) => {
             await agora.client.subscribe(user, mediaType);
 
             if (mediaType === "video") {
-              this.remoteVideoTrack = user.videoTrack;
+              const remoteTrack = user.videoTrack;
+
+              if (remoteTrack) {
+                this.remoteVideoTrack = remoteTrack;
+
+                // 🔥 FORCE PLAY FIX
+                setTimeout(() => {
+                  const el = document.getElementById("remote-video");
+                  if (el) {
+                    remoteTrack.play(el);
+                  }
+                }, 500);
+              }
             }
 
             if (mediaType === "audio") {
