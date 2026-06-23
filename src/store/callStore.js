@@ -16,6 +16,7 @@ export const useCallStore = defineStore("call", {
     channel: null,
     userId: null,
     receiverId: null,
+    isJoining: false,
   }),
 
   actions: {
@@ -69,115 +70,170 @@ export const useCallStore = defineStore("call", {
       this.channel = null;
       this.receiverId = null;
       this.callType = null;
+      this.isJoining = false;
     },
 
+    // async startCall(toUserId, type = "video") {
+    //   if (!this.userId) return;
+
+    //     if (this.isJoining || this.callActive) return;
+
+    //   this.isJoining = true;
+
+    //   try {
+    //     this.callType = type;
+    //     this.receiverId = toUserId;
+
+    //     const channel = `call_${this.userId}_${toUserId}`;
+    //     this.channel = channel;
+
+    //     await agora.join(channel, this.userId);
+
+    //     const tracks = await agora.publishTracks(type);
+
+    //     this.localAudioTrack = tracks.audio;
+    //     this.localVideoTrack = tracks.video;
+
+    //     this.callActive = true;
+
+    //     agora.client.removeAllListeners("user-published");
+
+    //     agora.client.on("user-published", async (user, mediaType) => {
+    //       await agora.client.subscribe(user, mediaType);
+
+    //       if (mediaType === "video") {
+    //         this.remoteVideoTrack = user.videoTrack;
+    //       }
+
+    //       if (mediaType === "audio") {
+    //         user.audioTrack?.play();
+    //       }
+    //     });
+
+    //     socket.emit("call-user", {
+    //       to: toUserId,
+    //       from: this.userId,
+    //       callType: type,
+    //       channel: channel,
+    //     });
+
+    //   } catch (err) {
+    //     console.error("CALL FAILED:", err);
+    //     this.forceEndCall();
+    //   }
+    // },
+
+
     async startCall(toUserId, type = "video") {
-      if (!this.userId) return;
+        if (!this.userId) return;
 
         if (this.isJoining || this.callActive) return;
 
-      this.isJoining = true;
+        this.isJoining = true;
 
-      try {
-        this.callType = type;
-        this.receiverId = toUserId;
+        try {
+          this.callType = type;
+          this.receiverId = toUserId;
 
-        const channel = `call_${this.userId}_${toUserId}`;
-        this.channel = channel;
+          const channel = `call_${this.userId}_${toUserId}`;
+          this.channel = channel;
 
-        await agora.join(channel, this.userId);
+          await agora.join(channel, this.userId);
 
-        const tracks = await agora.publishTracks(type);
+          const tracks = await agora.publishTracks(type);
 
-        this.localAudioTrack = tracks.audio;
-        this.localVideoTrack = tracks.video;
+          this.localAudioTrack = tracks.audio;
+          this.localVideoTrack = tracks.video;
 
-        this.callActive = true;
+          this.callActive = true;
 
-        agora.client.removeAllListeners("user-published");
+          agora.client.removeAllListeners("user-published");
 
-        agora.client.on("user-published", async (user, mediaType) => {
-          await agora.client.subscribe(user, mediaType);
+          agora.client.on("user-published", async (user, mediaType) => {
+            await agora.client.subscribe(user, mediaType);
 
-          if (mediaType === "video") {
-            this.remoteVideoTrack = user.videoTrack;
-          }
+            if (mediaType === "video") {
+              this.remoteVideoTrack = user.videoTrack;
+            }
 
-          if (mediaType === "audio") {
-            user.audioTrack?.play();
-          }
-        });
+            if (mediaType === "audio") {
+              user.audioTrack?.play();
+            }
+          });
 
-        socket.emit("call-user", {
-          to: toUserId,
-          from: this.userId,
-          callType: type,
-          channel: channel,
-        });
+          socket.emit("call-user", {
+            to: toUserId,
+            from: this.userId,
+            callType: type,
+            channel,
+          });
 
-      } catch (err) {
-        console.error("CALL FAILED:", err);
-        this.forceEndCall();
-      }
-    },
-
-    async acceptCall() {
-    const call = this.incomingCall;
-
-    if (!call || !this.userId) {
-      console.log("Missing call or userId");
-      return;
-    }
-
-      if (this.callActive || this.isJoining) return;
-      this.isJoining = true;
-
-    const channel = call.channel || `call_${call.from}_${this.userId}`;
-
-    try {
-      this.callType = call.callType;
-      this.receiverId = call.from;
-      this.channel = channel;
-
-      this.incomingCall = null; // move early is OK
-
-      await agora.join(channel, this.userId);
-
-      const tracks = await agora.publishTracks(call.callType);
-
-      this.localAudioTrack = tracks.audio;
-      this.localVideoTrack = tracks.video;
-
-      this.callActive = true;
-
-      agora.client.removeAllListeners("user-published");
-
-      agora.client.on("user-published", async (user, mediaType) => {
-        await agora.client.subscribe(user, mediaType);
-
-        if (mediaType === "video") {
-          this.remoteVideoTrack = user.videoTrack;
+        } catch (err) {
+          console.error("CALL FAILED:", err);
+          this.forceEndCall();
+        } finally {
+          this.isJoining = false;
         }
+      },
 
-        if (mediaType === "audio") {
-          user.audioTrack?.play();
-        }
-      });
 
-      // optional notify caller
-      socket.emit("call-accepted", {
-        to: call.from,
-        channel
-      });
+  //   async acceptCall() {
+  //   const call = this.incomingCall;
 
-    } catch (err) {
-      console.error("ACCEPT CALL ERROR:", err);
-      this.forceEndCall();
-    }
-    finally {
-      this.isJoining = false;
-    }
-  },
+  //   if (!call || !this.userId) {
+  //     console.log("Missing call or userId");
+  //     return;
+  //   }
+
+  //     if (this.callActive || this.isJoining) return;
+  //     this.isJoining = true;
+
+  //   const channel = call.channel || `call_${call.from}_${this.userId}`;
+
+  //   try {
+  //     this.callType = call.callType;
+  //     this.receiverId = call.from;
+  //     this.channel = channel;
+
+  //     this.incomingCall = null; // move early is OK
+
+  //     await agora.join(channel, this.userId);
+
+  //     const tracks = await agora.publishTracks(call.callType);
+
+  //     this.localAudioTrack = tracks.audio;
+  //     this.localVideoTrack = tracks.video;
+
+  //     this.callActive = true;
+
+  //     agora.client.removeAllListeners("user-published");
+
+  //     agora.client.on("user-published", async (user, mediaType) => {
+  //       await agora.client.subscribe(user, mediaType);
+
+  //       if (mediaType === "video") {
+  //         this.remoteVideoTrack = user.videoTrack;
+  //       }
+
+  //       if (mediaType === "audio") {
+  //         user.audioTrack?.play();
+  //       }
+  //     });
+
+  //     // optional notify caller
+  //     socket.emit("call-accepted", {
+  //       to: call.from,
+  //       channel
+  //     });
+
+  //   } catch (err) {
+  //     console.error("ACCEPT CALL ERROR:", err);
+  //     this.forceEndCall();
+  //   }
+  //   finally {
+  //     this.isJoining = false;
+  //   }
+  // },
 
   //   async acceptCall() {
   //   const call = this.incomingCall;
@@ -230,7 +286,63 @@ export const useCallStore = defineStore("call", {
   //     this.forceEndCall();
   //   }
   // },
-    async endCall() {
+    
+      async acceptCall() {
+        const call = this.incomingCall;
+
+        if (!call || !this.userId) return;
+
+        if (this.isJoining || this.callActive) return;
+
+        this.isJoining = true;
+
+        const channel = call.channel || `call_${call.from}_${this.userId}`;
+
+        try {
+          this.callType = call.callType;
+          this.receiverId = call.from;
+          this.channel = channel;
+
+          this.incomingCall = null;
+
+          await agora.join(channel, this.userId);
+
+          const tracks = await agora.publishTracks(call.callType);
+
+          this.localAudioTrack = tracks.audio;
+          this.localVideoTrack = tracks.video;
+
+          this.callActive = true;
+
+          agora.client.removeAllListeners("user-published");
+
+          agora.client.on("user-published", async (user, mediaType) => {
+            await agora.client.subscribe(user, mediaType);
+
+            if (mediaType === "video") {
+              this.remoteVideoTrack = user.videoTrack;
+            }
+
+            if (mediaType === "audio") {
+              user.audioTrack?.play();
+            }
+          });
+
+          socket.emit("call-accepted", {
+            to: call.from,
+            channel,
+          });
+
+        } catch (err) {
+          console.error("ACCEPT CALL ERROR:", err);
+          this.forceEndCall();
+        } finally {
+          this.isJoining = false;
+        }
+      },
+  
+  
+  async endCall() {
       socket.emit("call-ended", {
         to: this.receiverId || this.incomingCall?.from,
       });
