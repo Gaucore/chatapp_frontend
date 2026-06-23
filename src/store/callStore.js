@@ -150,7 +150,10 @@ export const useCallStore = defineStore("call", {
           agora.client.removeAllListeners("user-published");
 
           agora.client.on("user-published", async (user, mediaType) => {
+             console.log("USER PUBLISHED =>", user.uid, mediaType);
+
             await agora.client.subscribe(user, mediaType);
+             console.log("SUBSCRIBED =>", user.uid, mediaType);
 
             if (mediaType === "video") {
               const remoteTrack = user.videoTrack;
